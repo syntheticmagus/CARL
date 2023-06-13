@@ -20,9 +20,14 @@ namespace carl
 
     namespace math
     {
+        inline VectorT Lerp(const VectorT& a, const VectorT& b, NumberT t)
+        {
+            return a * (static_cast<NumberT>(1) - t) + b * t;
+        }
+
         inline TransformT Lerp(const TransformT& a, const TransformT& b, NumberT t)
         {
-            VectorT translation = a.translation() * (static_cast<NumberT>(1) - t) + b.translation() * t;
+            VectorT translation = Lerp(a.translation(), b.translation(), t);
             QuaternionT rotation = QuaternionT{ a.rotation() }.slerp(t, QuaternionT{ b.rotation() });
             TransformT transform{};
             transform.fromPositionOrientationScale(translation, rotation, UNIT_SCALE);

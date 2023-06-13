@@ -20,29 +20,18 @@ namespace carl
     /// </summary>
     struct InputSample
     {
-        enum class Joint : uint64_t
+        enum class HandJoint : uint64_t
         {
-            UNUSED_HandJointId_HandThumb0,
+            Wrist,
             ThumbFingerBase,
-            UNUSED_HandJointId_HandThumb2,
-            UNUSED_HandJointId_HandThumb3,
             ThumbFingerTip,
             IndexFingerBase,
-            UNUSED_HandJointId_HandIndex2,
-            UNUSED_HandJointId_HandIndex3,
             IndexFingerTip,
             MiddleFingerBase,
-            UNUSED_HandJointId_HandMiddle2,
-            UNUSED_HandJointId_HandMiddle3,
             MiddleFingerTip,
             RingFingerBase,
-            UNUSED_HandJointId_HandRing2,
-            UNUSED_HandJointId_HandRing3,
             RingFingerTip,
-            UNUSED_HandJointId_HandPinky0,
             LittleFingerBase,
-            UNUSED_HandJointId_HandPinky2,
-            UNUSED_HandJointId_HandPinky3,
             LittleFingerTip,
             COUNT
         };
@@ -58,10 +47,8 @@ namespace carl
         double Timestamp{};
 
         std::optional<TransformT> HmdPose{};
-        std::optional<TransformT> LeftWristPose{};
-        std::optional<TransformT> RightWristPose{};
-        std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> LeftHandJointPoses{};
-        std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> RightHandJointPoses{};
+        std::optional<std::array<VectorT, static_cast<size_t>(HandJoint::COUNT)>> LeftHandJointPositions{};
+        std::optional<std::array<VectorT, static_cast<size_t>(HandJoint::COUNT)>> RightHandJointPositions{};
 
         static InputSample lerp(const InputSample& a, const InputSample& b, double t);
     };

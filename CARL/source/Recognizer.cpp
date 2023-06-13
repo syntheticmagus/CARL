@@ -344,13 +344,11 @@ namespace carl::action
                         auto sampleCopy{ sample };
                         if constexpr (DescriptorT::HANDEDNESS == descriptor::Handedness::LeftHanded)
                         {
-                            sampleCopy.RightWristPose.reset();
-                            sampleCopy.RightHandJointPoses.reset();
+                            sampleCopy.RightHandJointPositions.reset();
                         }
                         else if constexpr (DescriptorT::HANDEDNESS == descriptor::Handedness::RightHanded)
                         {
-                            sampleCopy.LeftHandJointPoses.reset();
-                            sampleCopy.LeftHandJointPoses.reset();
+                            sampleCopy.LeftHandJointPositions.reset();
                         }
                         recording.addSample(std::move(sampleCopy));
                     }

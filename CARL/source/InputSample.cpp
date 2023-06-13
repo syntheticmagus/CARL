@@ -17,20 +17,16 @@ namespace carl
     {
         deserialization >> Timestamp;
         deserialization >> HmdPose;
-        deserialization >> LeftWristPose;
-        deserialization >> RightWristPose;
-        deserialization >> LeftHandJointPoses;
-        deserialization >> RightHandJointPoses;
+        deserialization >> LeftHandJointPositions;
+        deserialization >> RightHandJointPositions;
     }
 
     void InputSample::serialize(Serialization& serialization) const
     {
         serialization << Timestamp;
         serialization << HmdPose;
-        serialization << LeftWristPose;
-        serialization << RightWristPose;
-        serialization << LeftHandJointPoses;
-        serialization << RightHandJointPoses;
+        serialization << LeftHandJointPositions;
+        serialization << RightHandJointPositions;
     }
 
     InputSample InputSample::lerp(const InputSample& a, const InputSample& b, double t)
@@ -56,16 +52,14 @@ namespace carl
         };
 
         result.HmdPose = lerpOptional(a.HmdPose, b.HmdPose, t);
-        result.LeftWristPose = lerpOptional(a.LeftWristPose, b.LeftWristPose, t);
-        result.RightWristPose = lerpOptional(a.RightWristPose, b.RightWristPose, t);
 
         constexpr auto lerpOptionalArray = [](const auto& l, const auto& r, double t, auto& target) {
             if (l.has_value() && r.has_value())
             {
-                gsl::span<const TransformT> lSamples{ l.value() };
-                gsl::span<const TransformT> rSamples{ r.value() };
+                gsl::span<const VectorT> lSamples{ l.value() };
+                gsl::span<const VectorT> rSamples{ r.value() };
                 assert(lSamples.size() == rSamples.size());
-                std::array<TransformT, static_cast<size_t>(Joint::COUNT)> lerped{};
+                std::array<VectorT, static_cast<size_t>(HandJoint::COUNT)> lerped{};
                 for (size_t idx = 0; idx < lSamples.size(); ++idx)
                 {
                     lerped[idx] = math::Lerp(lSamples[idx], rSamples[idx], static_cast<float>(t));
@@ -82,8 +76,8 @@ namespace carl
             }
         };
 
-        lerpOptionalArray(a.LeftHandJointPoses, b.LeftHandJointPoses, t, result.LeftHandJointPoses);
-        lerpOptionalArray(a.RightHandJointPoses, b.RightHandJointPoses, t, result.RightHandJointPoses);
+        lerpOptionalArray(a.LeftHandJointPositions, b.LeftHandJointPositions, t, result.LeftHandJointPositions);
+        lerpOptionalArray(a.RightHandJointPositions, b.RightHandJointPositions, t, result.RightHandJointPositions);
 
         return result;
     }

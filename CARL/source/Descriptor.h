@@ -233,33 +233,32 @@ namespace carl::descriptor
     inline TransformT getWristPose(const InputSample& sample)
     {
         constexpr size_t Y_AXIS_JOINT{
-            static_cast<size_t>(InputSample::Joint::LittleFingerBase) };
+            static_cast<size_t>(InputSample::HandJoint::LittleFingerBase) };
         constexpr size_t Z_AXIS_JOINT{
-            static_cast<size_t>(InputSample::Joint::IndexFingerBase) };
+            static_cast<size_t>(InputSample::HandJoint::IndexFingerBase) };
 
         constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
-        const auto& wristPose =
-            isLeftHanded ? sample.LeftWristPose.value() : sample.RightWristPose.value();
-        const auto& jointPoses =
-            isLeftHanded ? sample.LeftHandJointPoses.value() : sample.RightHandJointPoses.value();
+        const auto& jointPositions =
+            isLeftHanded ? sample.LeftHandJointPositions.value() : sample.RightHandJointPositions.value();
+        const auto& wristPosition = jointPositions[static_cast<size_t>(InputSample::HandJoint::Wrist)];
 
-        auto zAxis = (jointPoses[Z_AXIS_JOINT].translation() - wristPose.translation()).normalized();
-        auto yAxis = zAxis.cross((jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).cross(zAxis)).normalized();
-        return math::LookTransform(zAxis, yAxis, wristPose.translation());
+        auto zAxis = (jointPositions[Z_AXIS_JOINT] - wristPosition).normalized();
+        auto yAxis = zAxis.cross((jointPositions[Y_AXIS_JOINT] - wristPosition).cross(zAxis)).normalized();
+        return math::LookTransform(zAxis, yAxis, wristPosition);
     }
 
     template <Handedness Handedness>
     class HandShape
     {
         static constexpr std::array<size_t, 5> JOINTS{
-            static_cast<size_t>(InputSample::Joint::ThumbFingerTip),
-            static_cast<size_t>(InputSample::Joint::IndexFingerTip),
-            static_cast<size_t>(InputSample::Joint::MiddleFingerTip),
-            static_cast<size_t>(InputSample::Joint::RingFingerTip),
-            static_cast<size_t>(InputSample::Joint::LittleFingerTip),
+            static_cast<size_t>(InputSample::HandJoint::ThumbFingerTip),
+            static_cast<size_t>(InputSample::HandJoint::IndexFingerTip),
+            static_cast<size_t>(InputSample::HandJoint::MiddleFingerTip),
+            static_cast<size_t>(InputSample::HandJoint::RingFingerTip),
+            static_cast<size_t>(InputSample::HandJoint::LittleFingerTip),
         };
         static constexpr size_t NORMALIZATION_JOINT{
-            static_cast<size_t>(InputSample::Joint::IndexFingerBase) };
+            static_cast<size_t>(InputSample::HandJoint::IndexFingerBase) };
 
     public:
         static constexpr std::array<double, JOINTS.size()> DEFAULT_TUNING{
@@ -276,13 +275,13 @@ namespace carl::descriptor
         {
             if constexpr (Handedness == Handedness::LeftHanded)
             {
-                if (sample.LeftWristPose.has_value() && sample.LeftHandJointPoses.has_value())
+                if (sample.LeftHandJointPositions.has_value())
                 {
                     return HandShape{ sample, priorSample };
                 }
             }
             else if constexpr (Handedness == Handedness::RightHanded) {
-                if (sample.RightWristPose.has_value() && sample.RightHandJointPoses.has_value()) {
+                if (sample.RightHandJointPositions.has_value()) {
                     return HandShape{ sample, priorSample };
                 }
             }
@@ -305,17 +304,17 @@ namespace carl::descriptor
         HandShape(const InputSample& sample, const InputSample&)
         {
             constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
-            const auto& jointPoses =
-                isLeftHanded ? sample.LeftHandJointPoses.value() : sample.RightHandJointPoses.value();
+            const auto& jointPositions =
+                isLeftHanded ? sample.LeftHandJointPositions.value() : sample.RightHandJointPositions.value();
 
             auto inverseWristPose = getWristPose<Handedness>(sample).inverse();
             
             float normalization =
-                (inverseWristPose * jointPoses[NORMALIZATION_JOINT].translation()).norm();
+                (inverseWristPose * jointPositions[NORMALIZATION_JOINT]).norm();
             for (size_t idx = 0; idx < JOINTS.size(); ++idx)
             {
                 m_positions[idx] =
-                    (inverseWristPose * jointPoses[JOINTS[idx]].translation()) / normalization;
+                    (inverseWristPose * jointPositions[JOINTS[idx]]) / normalization;
             }
         }
     };
@@ -338,14 +337,14 @@ namespace carl::descriptor
 
             if constexpr (Handedness == Handedness::LeftHanded)
             {
-                if (sample.LeftWristPose.has_value() && priorSample.LeftWristPose.has_value())
+                if (sample.LeftHandJointPositions.has_value() && priorSample.LeftHandJointPositions.has_value())
                 {
                     return EgocentricWristOrientation{ sample, priorSample };
                 }
             }
             else if constexpr (Handedness == Handedness::RightHanded)
             {
-                if (sample.RightWristPose.has_value() && priorSample.RightWristPose.has_value())
+                if (sample.RightHandJointPositions.has_value() && priorSample.RightHandJointPositions.has_value())
                 {
                     return EgocentricWristOrientation{ sample, priorSample };
                 }
@@ -371,8 +370,9 @@ namespace carl::descriptor
         {
             constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
             auto wristPose = getWristPose<Handedness>(sample);
-            auto priorWristPosition =
-                (isLeftHanded ? priorSample.LeftWristPose.value() : priorSample.RightWristPose.value()).translation();
+            auto& priorJointPositions = 
+                isLeftHanded ? priorSample.LeftHandJointPositions.value() : priorSample.RightHandJointPositions.value();
+            auto& priorWristPosition = priorJointPositions[static_cast<size_t>(InputSample::HandJoint::Wrist)];
             auto& priorHmdPose = priorSample.HmdPose.value();
 
             auto ets = EgocentricTemporalSpace::getPose(priorWristPosition, priorHmdPose);
@@ -447,14 +447,14 @@ namespace carl::descriptor
 
             if constexpr (Handedness == Handedness::LeftHanded)
             {
-                if (sample.LeftWristPose.has_value() && priorSample.LeftWristPose.has_value())
+                if (sample.LeftHandJointPositions.has_value() && priorSample.LeftHandJointPositions.has_value())
                 {
                     return EgocentricWristTranslation{ sample, priorSample };
                 }
             }
             else if constexpr (Handedness == Handedness::RightHanded)
             {
-                if (sample.RightWristPose.has_value() && priorSample.RightWristPose.has_value())
+                if (sample.RightHandJointPositions.has_value() && priorSample.RightHandJointPositions.has_value())
                 {
                     return EgocentricWristTranslation{ sample, priorSample };
                 }
@@ -479,13 +479,14 @@ namespace carl::descriptor
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)
         {
             constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
-            auto& wristPose = isLeftHanded ? sample.LeftWristPose.value() : sample.RightWristPose.value();
-            auto& priorWristPose =
-                isLeftHanded ? priorSample.LeftWristPose.value() : priorSample.RightWristPose.value();
+            auto& jointPositions = isLeftHanded ? sample.LeftHandJointPositions.value() : sample.RightHandJointPositions.value();
+            auto& wristPosition = jointPositions[static_cast<size_t>(InputSample::HandJoint::Wrist)];
+            auto& priorJointPositions = isLeftHanded ? priorSample.LeftHandJointPositions.value() : priorSample.RightHandJointPositions.value();
+            auto& priorWristPosition = priorJointPositions[static_cast<size_t>(InputSample::HandJoint::Wrist)];
             auto& priorHmdPose = priorSample.HmdPose.value();
 
-            auto ets = EgocentricTemporalSpace::getPose(priorWristPose.translation(), priorHmdPose);
-            m_egocentricTemporalPositionDecimeters = 10.f * (ets.inverse() * wristPose.translation());
+            auto ets = EgocentricTemporalSpace::getPose(priorWristPosition, priorHmdPose);
+            m_egocentricTemporalPositionDecimeters = 10.f * (ets.inverse() * wristPosition);
         }
     };
 
@@ -550,8 +551,8 @@ namespace carl::descriptor
             const InputSample& priorSample)
         {
             if (sample.HmdPose.has_value() && 
-                sample.LeftWristPose.has_value() &&
-                sample.RightWristPose.has_value())
+                sample.LeftHandJointPositions.has_value() &&
+                sample.RightHandJointPositions.has_value())
             {
                 return EgocentricRelativeWristPosition{ sample, priorSample };
             }
@@ -574,12 +575,12 @@ namespace carl::descriptor
 
         EgocentricRelativeWristPosition(const InputSample& sample, const InputSample&)
         {
-            auto& leftWristPose = sample.LeftWristPose.value();
-            auto& rightWristPose = sample.RightWristPose.value();
+            auto& leftWristPosition = sample.LeftHandJointPositions.value()[static_cast<size_t>(InputSample::HandJoint::Wrist)];
+            auto& rightWristPosition = sample.RightHandJointPositions.value()[static_cast<size_t>(InputSample::HandJoint::Wrist)];
             auto& hmdPose = sample.HmdPose.value();
 
-            auto ets = EgocentricTemporalSpace::getPose(leftWristPose.translation(), hmdPose);
-            m_egocentricRelativeWristPosition = ets.inverse() * rightWristPose.translation();
+            auto ets = EgocentricTemporalSpace::getPose(leftWristPosition, hmdPose);
+            m_egocentricRelativeWristPosition = ets.inverse() * rightWristPosition;
         }
     };
 
