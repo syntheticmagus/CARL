@@ -104,6 +104,10 @@ namespace carl::action
     protected:
         virtual Example createAutoTrimmedExample(const Recording&) const = 0;
 
+        virtual gsl::span<const double> getTuningValues() const = 0;
+
+        virtual void setTuningValueAtIndex(double value, size_t index) = 0;
+
     protected:
         arcana::weak_table<Signal<bool>::HandlerT> m_whenRecognitionChangedHandlers{};
         std::atomic<double> m_currentScore{};
@@ -175,6 +179,16 @@ namespace carl::action
                 }
 
                 return{ recording, startT, endT };
+            }
+
+            gsl::span<const double> getTuningValues() const
+            {
+                return m_tuning;
+            }
+
+            void setTuningValueAtIndex(double value, size_t index)
+            {
+                m_tuning[index] = value;
             }
 
         private:
@@ -467,5 +481,15 @@ namespace carl::action
     Example Recognizer::createAutoTrimmedExample(const Recording& recording) const
     {
         return m_impl->createAutoTrimmedExample(recording);
+    }
+
+    gsl::span<const double> Recognizer::getTuningValues() const
+    {
+        return m_impl->getTuningValues();
+    }
+
+    void Recognizer::setTuningValueAtIndex(double value, size_t index)
+    {
+        m_impl->setTuningValueAtIndex(value, index);
     }
 }

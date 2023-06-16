@@ -32,6 +32,10 @@ namespace carl::action
 
         Example createAutoTrimmedExample(const Recording&) const;
 
+        gsl::span<const double> getTuningValues() const;
+
+        void setTuningValueAtIndex(double value, size_t index);
+
     private:
         std::unique_ptr<Impl> m_impl{};
 

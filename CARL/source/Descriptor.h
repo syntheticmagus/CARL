@@ -433,7 +433,7 @@ namespace carl::descriptor
     class EgocentricWristTranslation
     {
     public:
-        static constexpr std::array<double, 1> DEFAULT_TUNING{ 10. };
+        static constexpr std::array<double, 1> DEFAULT_TUNING{ 20. };
         static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<EgocentricWristTranslation> TryCreate(

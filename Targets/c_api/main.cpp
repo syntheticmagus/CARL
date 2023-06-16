@@ -45,6 +45,8 @@ extern "C"
     C_API_EXPORT(double) getCurrentScore(uint64_t recognizerPtr);
     C_API_EXPORT(void) setSensitivity(uint64_t recognizerPtr, double sensitivity);
     C_API_EXPORT(uint64_t) getCanonicalRecordingInspector(uint64_t recognizerPtr);
+    C_API_EXPORT(uint64_t) getTuningValues(uint64_t recognizerPtr);
+    C_API_EXPORT(void) setTuningValueAtIndex(uint64_t recognizerPtr, double value, uint64_t index);
     C_API_EXPORT(void) disposeRecognizer(uint64_t recognizerPtr);
 }
 
@@ -58,7 +60,7 @@ uint64_t getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
     else
     {
         std::memcpy(destination, bytes.data(), size);
-        delete& bytes;
+        delete &bytes;
         return size;
     }
 }
@@ -258,6 +260,25 @@ uint64_t getCanonicalRecordingInspector(uint64_t recognizerPtr)
     auto& recognizer = *reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
     auto* ptr = new carl::action::RecordingInspector(recognizer.getCanonicalRecordingInspector());
     return reinterpret_cast<uint64_t>(ptr);
+}
+
+uint64_t getTuningValues(uint64_t recognizerPtr)
+{
+    auto& recognizer = *reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
+    auto tuning = recognizer.getTuningValues();
+    static_assert(std::is_same_v<double, decltype(tuning)::value_type>);
+
+    auto* bytesPtr = new std::vector<uint8_t>();
+    size_t bytesSize = tuning.size() * sizeof(double);
+    std::memcpy(bytesPtr->data(), tuning.data(), bytesSize);
+
+    return reinterpret_cast<uint64_t>(bytesPtr);
+}
+
+void setTuningValueAtIndex(uint64_t recognizerPtr, double value, uint64_t index)
+{
+    auto& recognizer = *reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
+    recognizer.setTuningValueAtIndex(value, static_cast<size_t>(index));
 }
 
 void disposeRecognizer(uint64_t recognizerPtr)
