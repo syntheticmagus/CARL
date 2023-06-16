@@ -181,12 +181,12 @@ namespace carl::action
                 return{ recording, startT, endT };
             }
 
-            gsl::span<const double> getTuningValues() const
+            gsl::span<const double> getTuningValues() const override
             {
                 return m_tuning;
             }
 
-            void setTuningValueAtIndex(double value, size_t index)
+            void setTuningValueAtIndex(double value, size_t index) override
             {
                 m_tuning[index] = value;
             }
