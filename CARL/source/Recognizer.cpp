@@ -157,7 +157,7 @@ namespace carl::action
                 auto mostRecentSample = samples.front();
                 for (const auto& sample : recording.getSamples())
                 {
-                    descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning);
+                    descriptor::SequenceHelpers::ExtendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning);
                 }
 
                 std::vector<DescriptorT> sequence{};
@@ -202,7 +202,7 @@ namespace carl::action
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
                 auto inspector = recording.getInspector();
-                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
+                auto targetSequence = descriptor::SequenceHelpers::CreateDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
 
                 const auto outputAnalysis = [&output, &targetSequence](auto analysis, std::string label, const auto& querySequence, size_t idx) {
                     for (const auto& [name, identicality, tuning, rows] : analysis)
@@ -259,8 +259,8 @@ namespace carl::action
 
             void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
-                m_templates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(examples, m_tuning);
-                m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning);
+                m_templates = descriptor::SequenceHelpers::CreateDescriptorSequencesFromExamples<DescriptorT>(examples, m_tuning);
+                m_countertemplates = descriptor::SequenceHelpers::CreateDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning);
 
                 // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
                 for (const auto& t : m_templates)

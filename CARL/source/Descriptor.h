@@ -15,6 +15,7 @@
 #include <gsl/span>
 
 #include <array>
+#include <unordered_set>
 #include <utility>
 
 namespace carl::descriptor
@@ -346,107 +347,225 @@ namespace carl::descriptor
         return createDistanceNormalizationFunction(identicalityThreshold, 2 * identicalityThreshold);
     }
 
-    // TODO: Find a better place for this (and everything above it) to live.
-    template<typename DescriptorT>
-    void extendSequence(const InputSample& newSample, std::vector<DescriptorT>& sequence, InputSample& mostRecentSample, gsl::span<const NumberT> tuning)
+    class SequenceHelpers
     {
-        constexpr NumberT THRESHOLD{ 0.5 };
-
-        // Handle startup, in which case m_mostRecentSample will be a default value.
-        if (sequence.empty())
+    public:
+        template<typename DescriptorT>
+        static void ExtendSequence(const InputSample& newSample, std::vector<DescriptorT>& sequence, InputSample& mostRecentSample, gsl::span<const NumberT> tuning)
         {
-            auto descriptor = DescriptorT::TryCreate(newSample, newSample);
-            if (descriptor.has_value())
+            constexpr NumberT THRESHOLD{ 0.5 };
+
+            // Handle startup, in which case m_mostRecentSample will be a default value.
+            if (sequence.empty())
             {
-                sequence.emplace_back(std::move(*descriptor));
-                mostRecentSample = newSample;
+                auto descriptor = DescriptorT::TryCreate(newSample, newSample);
+                if (descriptor.has_value())
+                {
+                    sequence.emplace_back(std::move(*descriptor));
+                    mostRecentSample = newSample;
+                }
             }
-        }
-        else
-        {
-            // Iteratively create new mostRecentSamples and descriptors until the most recent descriptor is sufficiently close to that of newSample.
-            // TODO: Figure out if delta descriptors (rotation, translation, etc.) will play correctly with this, since lerping inputs should not 
-            //       change them. Might be necessary to mute such descriptors with tuning.
-            while (true)
+            else
             {
-                auto sampleDesc = DescriptorT::TryCreate(newSample, mostRecentSample);
-
-                // If we weren't able to create a descriptor, stop iterating.
-                if (!sampleDesc.has_value())
-                {
-                    break;
-                }
-
-                auto outerDistance = DescriptorT::Distance(*sampleDesc, sequence.back(), sequence.back(), sequence.back(), tuning);
-                if (outerDistance < THRESHOLD)
-                {
-                    break;
-                }
-
-                // Posit new samples, and associated descriptors, to bring the end of sequence closer to newSample.
-                NumberT upper = 1;
-                NumberT lower = 0;
-                NumberT mid{};
+                // Iteratively create new mostRecentSamples and descriptors until the most recent descriptor is sufficiently close to that of newSample.
+                // TODO: Figure out if delta descriptors (rotation, translation, etc.) will play correctly with this, since lerping inputs should not 
+                //       change them. Might be necessary to mute such descriptors with tuning.
                 while (true)
                 {
-                    mid = (upper + lower) / NumberT{ 2 };
-                    auto intermediateDesc = DescriptorT::Lerp(sequence.back(), *sampleDesc, mid);
-                    auto distance = DescriptorT::Distance(intermediateDesc, sequence.back(), sequence.back(), sequence.back(), tuning);
-                    if (distance > THRESHOLD)
+                    auto sampleDesc = DescriptorT::TryCreate(newSample, mostRecentSample);
+
+                    // If we weren't able to create a descriptor, stop iterating.
+                    if (!sampleDesc.has_value())
                     {
-                        // intermediate sample is too distant, continue searching for a nearer sample
-                        upper = mid;
-                    }
-                    else if (distance < NumberT{ 0.9 } *THRESHOLD)
-                    {
-                        // intermediate sample is too close, continue searching for a more distant sample
-                        lower = mid;
-                    }
-                    else
-                    {
-                        // intermediate sample is satisfactory, stop searching
-                        sequence.push_back(intermediateDesc);
-                        mostRecentSample = InputSample::Lerp(mostRecentSample, newSample, mid);
                         break;
+                    }
+
+                    auto outerDistance = DescriptorT::Distance(*sampleDesc, sequence.back(), sequence.back(), sequence.back(), tuning);
+                    if (outerDistance < THRESHOLD)
+                    {
+                        break;
+                    }
+
+                    // Posit new samples, and associated descriptors, to bring the end of sequence closer to newSample.
+                    NumberT upper = 1;
+                    NumberT lower = 0;
+                    NumberT mid{};
+                    while (true)
+                    {
+                        mid = (upper + lower) / NumberT{ 2 };
+                        auto intermediateDesc = DescriptorT::Lerp(sequence.back(), *sampleDesc, mid);
+                        auto distance = DescriptorT::Distance(intermediateDesc, sequence.back(), sequence.back(), sequence.back(), tuning);
+                        if (distance > THRESHOLD)
+                        {
+                            // intermediate sample is too distant, continue searching for a nearer sample
+                            upper = mid;
+                        }
+                        else if (distance < NumberT{ 0.9 } *THRESHOLD)
+                        {
+                            // intermediate sample is too close, continue searching for a more distant sample
+                            lower = mid;
+                        }
+                        else
+                        {
+                            // intermediate sample is satisfactory, stop searching
+                            sequence.push_back(intermediateDesc);
+                            mostRecentSample = InputSample::Lerp(mostRecentSample, newSample, mid);
+                            break;
+                        }
                     }
                 }
             }
         }
-    }
 
-    template<typename DescriptorT>
-    std::vector<DescriptorT> createDescriptorSequenceFromRecording(const action::Recording& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning)
-    {
-        std::vector<DescriptorT> sequence{};
-
-        auto samples = recording.getSamples();
-        InputSample mostRecentSample{};
-
-        size_t idx = 0;
-        while (idx < samples.size() - 1 && samples[idx].Timestamp < startTimestamp)
+        template<typename DescriptorT>
+        static std::vector<DescriptorT> CreateDescriptorSequenceFromRecording(const action::Recording& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning)
         {
-            ++idx;
-        }
-        while (idx < samples.size() - 1 && samples[idx].Timestamp < endTimestamp)
-        {
-            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning);
-            ++idx;
+            std::vector<DescriptorT> sequence{};
+
+            auto samples = recording.getSamples();
+            InputSample mostRecentSample{};
+
+            size_t idx = 0;
+            while (idx < samples.size() - 1 && samples[idx].Timestamp < startTimestamp)
+            {
+                ++idx;
+            }
+            while (idx < samples.size() - 1 && samples[idx].Timestamp < endTimestamp)
+            {
+                ExtendSequence(samples[idx], sequence, mostRecentSample, tuning);
+                ++idx;
+            }
+
+            return sequence;
         }
 
-        return sequence;
-    }
-
-    template<typename DescriptorT>
-    std::vector<std::vector<DescriptorT>> createDescriptorSequencesFromExamples(gsl::span<const action::Example> examples, gsl::span<const NumberT> tuning, double padding = 0.)
-    {
-        std::vector<std::vector<DescriptorT>> sequences{};
-        sequences.reserve(examples.size());
-        for (const auto& example : examples)
+        template<typename DescriptorT>
+        static std::vector<std::vector<DescriptorT>> CreateDescriptorSequencesFromExamples(gsl::span<const action::Example> examples, gsl::span<const NumberT> tuning, double padding = 0.)
         {
-            sequences.push_back(createDescriptorSequenceFromRecording<DescriptorT>(example.getRecording(), example.getStartTimestamp() - padding, example.getEndTimestamp() + padding, tuning));
+            std::vector<std::vector<DescriptorT>> sequences{};
+            sequences.reserve(examples.size());
+            for (const auto& example : examples)
+            {
+                sequences.push_back(CreateDescriptorSequenceFromRecording<DescriptorT>(example.getRecording(), example.getStartTimestamp() - padding, example.getEndTimestamp() + padding, tuning));
+            }
+            return sequences;
         }
-        return sequences;
-    }
+
+        template<typename DescriptorT, typename DescriptorRawDistanceCallbackT>
+        static std::vector<size_t> SegmentSequence(gsl::span<const DescriptorT> sequence, const DescriptorRawDistanceCallbackT& rawDistance)
+        {
+            // Create the function which penalizes short segments. This is the key to the algorithm because it controls to what
+            // extent segmentation will tolerate error, so computing reasonable values for this is crucial. Currently this is
+            // calculated based on the maximum observed single step cost within the sequence.
+            // TODO: Evaluate whether or maxSingleStepCost is logically connected to default identicality thresholds (which, if
+            // said thresholds are used as the basis for sampling [implicitly in accordance with default tuning], they are), and
+            // if so, whether this should simply be passed in by the calling descriptor which already has knowledge of what kind
+            // of discrepancy is considered "noise."
+            NumberT maxSingleStepCost = 0;
+            for (size_t idx = 1; idx < sequence.size(); ++idx)
+            {
+                maxSingleStepCost = std::max(maxSingleStepCost, rawDistance(sequence[idx - 1], sequence.front(), sequence[idx], sequence.front()));
+            }
+            const auto penalizeShortSegments = [maxSingleStepCost](size_t from, size_t to, NumberT cost) {
+                return cost + maxSingleStepCost / static_cast<NumberT>(to - from);
+            };
+
+            struct NodeData
+            {
+                size_t Ancestor{ std::numeric_limits<size_t>::max() };
+                NumberT Cost{ std::numeric_limits<NumberT>::max() };
+            };
+
+            struct Node
+            {
+                size_t Idx{};
+                NodeData* Data{};
+
+                bool operator>(const Node& other) const
+                {
+                    return Data->Cost > other.Data->Cost;
+                }
+            };
+
+            std::vector<NodeData> data{};
+            data.resize(sequence.size());
+            data[0] = { 0, 0 };
+
+            std::unordered_set<size_t> visited{};
+
+            std::vector<Node> unvisited{};
+            for (size_t idx = 1; idx < data.size(); ++idx)
+            {
+                unvisited.push_back({ idx, &data[idx] });
+            }
+            unvisited.push_back({ 0, &data[0] });
+
+            while (unvisited.back().Idx != sequence.size() - 1)
+            {
+                auto from = unvisited.back();
+                unvisited.pop_back();
+                visited.insert(from.Idx);
+
+                for (size_t toIdx = from.Idx + 1; toIdx < sequence.size(); ++toIdx)
+                {
+                    if (visited.find(toIdx) != visited.end())
+                    {
+                        continue;
+                    }
+
+                    NumberT cost{ 0 };
+                    for (size_t k = from.Idx + 1; k < toIdx; ++k)
+                    {
+                        cost += EstimateProjectionError(sequence[k], sequence[from.Idx], sequence[toIdx], sequence.front(), rawDistance);
+                    }
+                    cost = penalizeShortSegments(from.Idx, toIdx, cost);
+
+                    auto& toData = data[toIdx];
+                    if (cost < toData.Cost)
+                    {
+                        toData.Ancestor = from.Idx;
+                        toData.Cost = cost;
+                    }
+                }
+
+                constexpr auto gt = std::greater<Node>();
+                std::sort(unvisited.begin(), unvisited.end(), gt);
+            }
+
+            std::vector<size_t> results{};
+            for (size_t idx = data.size() - 1; idx != 0; idx = data[idx].Ancestor)
+            {
+                results.push_back(idx);
+            }
+            results.push_back(0);
+            std::reverse(results.begin(), results.end());
+            return results;
+        }
+
+    private:
+        static NumberT ComputeTriangleHeight(NumberT b, NumberT l, NumberT r)
+        {
+            const auto x = (std::pow(l, 2) - std::pow(r, 2)) / (2 * b);
+            const auto y = std::sqrt(std::pow(l, 2) - std::pow(x + b / 2, 2));
+            return std::abs(y);
+        }
+
+        template<typename T, typename DescriptorRawDistanceCallbackT>
+        static NumberT EstimateProjectionError(const T& p, const T& a, const T& b, const T& origin, const DescriptorRawDistanceCallbackT& rawDistance)
+        {
+            const auto ab = rawDistance(a, origin, b, origin);
+            if (ab < std::numeric_limits<NumberT>::epsilon())
+            {
+                return rawDistance(a, origin, p, origin);
+            }
+            else
+            {
+                const auto ap = rawDistance(a, origin, p, origin);
+                const auto pb = rawDistance(p, origin, b, origin);
+                return ComputeTriangleHeight(ab, ap, pb);
+            }
+        }
+    };
 
     using AnalysisT = std::tuple<std::string, NumberT, NumberT, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>;
 
@@ -525,20 +644,21 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
             {
+                auto distanceFunction = [idx](const auto& a, const auto&, const auto& b, const auto&) {
+                    return InternalRawDistance(idx, a, b);
+                };
+
                 NumberT maxConnectionCost = 0;
                 for (const auto& extendedSequence : extendedSequences)
                 {
                     for (const auto& sequence : sequences)
                     {
-                        auto distanceFunction = [idx](const auto& a, const auto&, const auto& b, const auto&) {
-                            return InternalRawDistance(idx, a, b);
-                        };
                         auto result = DynamicTimeWarping::Match<const HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
                         maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                     }
@@ -674,8 +794,8 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
@@ -809,8 +929,8 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
@@ -946,8 +1066,8 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
@@ -1084,8 +1204,8 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
@@ -1218,8 +1338,8 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, 1.);
+            auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING);
+            auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;

@@ -59,7 +59,7 @@ namespace carl
             bool handleInputSample(const InputSample& sample)
             {
                 size_t priorSequenceSize = m_sequence.size();
-                descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
+                descriptor::SequenceHelpers::ExtendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
                 bool descriptorsAdded = m_sequence.size() > priorSequenceSize;
 
                 if (m_sequence.size() > m_sequenceLength)
