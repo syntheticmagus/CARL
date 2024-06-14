@@ -161,7 +161,7 @@ namespace carl::DynamicTimeWarping
     };
 
     template <typename VectorT, typename CallableT, typename NumberT = double, bool ReturnAllResults = false, typename... Ts>
-    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, CallableT& distance, Ts&... ts)
+    MatchResult<NumberT> Match(gsl::span<const VectorT> target, gsl::span<const VectorT> query, CallableT& distance, Ts&... ts)
     {
         struct Entry
         {

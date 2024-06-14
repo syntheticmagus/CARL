@@ -659,7 +659,7 @@ namespace carl::descriptor
                 {
                     for (const auto& sequence : sequences)
                     {
-                        auto result = DynamicTimeWarping::Match<const HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
+                        auto result = DynamicTimeWarping::Match<HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
                         maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                     }
                 }
@@ -690,7 +690,7 @@ namespace carl::descriptor
                     }
                 };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const HandShape<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+                DynamicTimeWarping::Match<HandShape<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
             }
             return results;
         }
@@ -794,6 +794,10 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            constexpr auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return InternalRawDistance(a, b);
+            };
+
             auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING);
             auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
@@ -803,10 +807,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
-                        return InternalRawDistance(a, b);
-                    };
-                    auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
+                    auto result = DynamicTimeWarping::Match<EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
@@ -834,7 +835,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
             return results;
         }
 
@@ -929,6 +930,10 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            constexpr auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return InternalRawDistance(a, b);
+            };
+
             auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING);
             auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
@@ -938,10 +943,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
-                        return InternalRawDistance(a, b);
-                    };
-                    auto result = DynamicTimeWarping::Match<const WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
+                    auto result = DynamicTimeWarping::Match<WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
@@ -969,7 +971,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const WristRotation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<WristRotation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
             return results;
         }
 
@@ -1066,6 +1068,10 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            constexpr auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return InternalRawDistance(a, b);
+            };
+
             auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING);
             auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
@@ -1075,10 +1081,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
-                        return InternalRawDistance(a, b);
-                    };
-                    auto result = DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
+                    auto result = DynamicTimeWarping::Match<EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
@@ -1106,7 +1109,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
             return results;
         }
 
@@ -1204,6 +1207,10 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            constexpr auto distanceFunction = [](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                return InternalRawDistance(a, a0, b, b0);
+            };
+
             auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING);
             auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
@@ -1213,10 +1220,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto& a0, const auto& b, const auto& b0) {
-                        return InternalRawDistance(a, a0, b, b0);
-                    };
-                    auto result = DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>>(extendedSequence, sequence, distanceFunction);
+                    auto result = DynamicTimeWarping::Match<EgocentricWristDisplacement<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
@@ -1244,7 +1248,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
             return results;
         }
 
@@ -1338,6 +1342,10 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            constexpr auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return InternalRawDistance(a, b);
+            };
+
             auto sequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING);
             auto extendedSequences = SequenceHelpers::CreateDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, 1.);
 
@@ -1347,10 +1355,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
-                        return InternalRawDistance(a, b);
-                    };
-                    auto result = DynamicTimeWarping::Match<const EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
+                    auto result = DynamicTimeWarping::Match<EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
@@ -1378,7 +1383,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
             return results;
         }
 
@@ -1473,7 +1478,7 @@ namespace carl::descriptor
                     return Distance(a, a0, b, b0, tuning);
                 };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+                DynamicTimeWarping::Match<CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
                 return arrayConcat(underlyingAnalysis, results);
             }
             else
