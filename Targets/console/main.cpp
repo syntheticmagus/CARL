@@ -48,6 +48,101 @@ namespace
         return { recording, static_cast<double>(startTimestamp), static_cast<double>(endTimestamp) };
     }
 
+    void toJson(const carl::TransformT& transform, std::ostream& output)
+    {
+        output << "[";
+        const auto& matrix = transform.matrix();
+        for (size_t idx = 0; idx < 16; ++idx)
+        {
+            output << matrix(idx);
+            if (idx < 15)
+            {
+                output << ",";
+            }
+        }
+        output << "]";
+    }
+
+    void toJson(const carl::InputSample& sample, std::ostream& output)
+    {
+        output << "{";
+        output << "\"timestamp\":" << sample.Timestamp;
+        if (sample.HmdPose.has_value())
+        {
+            output << ",";
+            output << "\"hmdPose\":";
+            toJson(sample.HmdPose.value(), output);
+        }
+        if (sample.LeftWristPose.has_value())
+        {
+            output << ",";
+            output << "\"leftWristPose\":";
+            toJson(sample.LeftWristPose.value(), output);
+        }
+        if (sample.LeftHandJointPoses.has_value())
+        {
+            output << ",";
+            const auto& poses = sample.LeftHandJointPoses.value();
+            output << "\"leftHandJointPoses\":[";
+            for (size_t idx = 0; idx < poses.size(); ++idx)
+            {
+                toJson(poses[idx], output);
+                if (idx < poses.size() - 1)
+                {
+                    output << ",";
+                }
+            }
+            output << "]";
+        }
+        if (sample.RightWristPose.has_value())
+        {
+            output << ",";
+            output << "\"rightWristPose\":";
+            toJson(sample.RightWristPose.value(), output);
+        }
+        if (sample.RightHandJointPoses.has_value())
+        {
+            output << ",";
+            const auto& poses = sample.RightHandJointPoses.value();
+            output << "\"rightHandJointPoses\":[";
+            for (size_t idx = 0; idx < poses.size(); ++idx)
+            {
+                toJson(poses[idx], output);
+                if (idx < poses.size() - 1)
+                {
+                    output << ",";
+                }
+            }
+            output << "]";
+        }
+        output << "}";
+    }
+
+    void toJson(const carl::action::Recording& recording, std::ostream& output)
+    {
+        output << "[";
+        auto samples = recording.getSamples();
+        for (size_t idx = 0; idx < samples.size(); ++idx)
+        {
+            toJson(samples[idx], output);
+            if (idx != samples.size() - 1)
+            {
+                output << ",";
+            }
+        }
+        output << "]";
+    }
+
+    void toJson(const carl::action::Example& example, std::ostream& output)
+    {
+        output << "{";
+        output << "\"startTimestamp\":" << example.getStartTimestamp() << ",";
+        output << "\"endTimestamp\":" << example.getEndTimestamp() << ",";
+        output << "\"recording\":";
+        toJson(example.getRecording(), output);
+        output << "}";
+    }
+
     void ensureDirectory(const std::filesystem::path& path)
     {
         if (!std::filesystem::is_directory(path))
@@ -265,7 +360,15 @@ Instead of DTW, do a naive sequence match? Fail out if any single connection is 
 
 void main(int argc, const char** argv)
 {
-    try
+    const std::filesystem::path inputPath{ argv[1] };
+    auto outputPath = inputPath;
+    outputPath.replace_extension(".json");
+
+    const auto example = loadExample(inputPath);
+    std::ofstream outStream{ outputPath };
+    toJson(example, outStream);
+
+    /*try
     {
         switch (argc)
         {
@@ -285,5 +388,5 @@ void main(int argc, const char** argv)
     catch (...)
     {
         std::cout << "TODO: Print usage message" << std::endl;
-    }
+    }*/
 }
