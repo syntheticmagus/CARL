@@ -19,6 +19,20 @@ elseif(ANDROID)
 endif()
 set_property(TARGET carl_static_library PROPERTY FOLDER "Targets")
 
+set(CARL_CPP_API_SOURCES
+    "cpp_api/include/carl/Carl.h"
+    "cpp_api/source/Carl.cpp")
+add_library(carl_cpp_library ${CARL_CPP_API_SOURCES})
+target_link_libraries(carl_cpp_library PRIVATE carl_core)
+target_include_directories(carl_cpp_library PRIVATE "cpp_api/include/carl" INTERFACE "cpp_api/include")
+if(WIN32 OR WINDOWS_STORE)
+    target_compile_definitions(carl_cpp_library PRIVATE CARL_PLATFORM_WINDOWS)
+elseif(ANDROID)
+    target_compile_definitions(carl_cpp_library PRIVATE CARL_PLATFORM_ANDROID)
+    target_link_libraries(carl_cpp_library PRIVATE ${android_logging})
+endif()
+set_property(TARGET carl_cpp_library PROPERTY FOLDER "Targets")
+
 if(NOT EMSCRIPTEN)
     add_library(carl_shared_library SHARED "c_api/main.cpp")
     target_link_libraries(carl_shared_library PUBLIC carl_core)
