@@ -160,7 +160,6 @@ namespace carl::action
             RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, NumberT sensitivity, ContractId<>::IdT customContractId = ContractId<>::INVALID_ID)
                 : Recognizer::Impl{ session, sensitivity, customContractId }
                 , m_ticket{ addHandlerToSession<DescriptorT>(session, [this](gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) { handleSequence(sequence, newDescriptorsCount); }, customContractId) }
-                , m_distanceFunction{ [this](const auto& a, const auto& a0, const auto& b, const auto& b0) { return DescriptorT::Distance(a, a0, b, b0, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
@@ -168,7 +167,6 @@ namespace carl::action
                 // TODO: Figure out why the tuning resampling negatively impacts recognition, then substitute the following for the above
                 // calculateTuning(examples);
                 // initializeTemplates(examples, counterexamples);
-                createScoringFunction();
                 createCanonicalRecording(examples);
             }
 
@@ -198,10 +196,13 @@ namespace carl::action
                     sequence.push_back(desc.getUnderlyingDescriptor());
                 }
 
-                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], m_distanceFunction);
+                auto distFn = [this](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                    return DescriptorT::Distance(a, a0, b, b0, m_tuning);
+                };
+                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], distFn);
                 for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
-                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], m_distanceFunction);
+                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], distFn);
                     if (matchResult.MatchCost < bestMatchResult.MatchCost)
                     {
                         bestMatchResult = matchResult;
@@ -300,8 +301,6 @@ namespace carl::action
             std::vector<std::vector<DescriptorT>> m_countertemplates{};
             size_t m_trimmedSequenceLength{};
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
-            std::function<NumberT(const DescriptorT&, const DescriptorT&, const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
-            std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
 
             void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
@@ -363,18 +362,10 @@ namespace carl::action
                 }
             }
 
-            void createUnitScoringFunction()
+            NumberT applyScoring(NumberT distance) const
             {
-                m_scoringFunction = [this](NumberT distance)
-                {
-                    distance /= DescriptorT::DEFAULT_TUNING.size();
-                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
-                };
-            }
-
-            void createScoringFunction()
-            {
-                createUnitScoringFunction();
+                distance /= DescriptorT::DEFAULT_TUNING.size();
+                return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
             }
 
             /// <summary>
@@ -426,10 +417,31 @@ namespace carl::action
             NumberT calculateMatchDistance(
                 gsl::span<const DescriptorT> target,
                 gsl::span<const DescriptorT> query,
-                size_t minimumImageEndIdx = 0) const
+                size_t minimumImageEndIdx = 0,
+                NumberT costCeiling = std::numeric_limits<NumberT>::max()) const
             {
-                auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction, minimumImageEndIdx);
+                auto distFn = [this](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                    return DescriptorT::Distance(a, a0, b, b0, m_tuning);
+                };
+                auto result = DynamicTimeWarping::Match(target, query, distFn, minimumImageEndIdx, costCeiling);
                 return result.MatchCost / result.Connections;
+            }
+
+            // Computes the maximum raw DTW cost that could yield a non-zero score.
+            // Any match with MatchCost above this ceiling is guaranteed to score zero,
+            // regardless of path length, so DTW can safely prune such cells.
+            NumberT computeZeroScoreCostCeiling(
+                gsl::span<const DescriptorT> target,
+                gsl::span<const DescriptorT> query) const
+            {
+                // applyScoring(d) = max(1 - (d / (3.16228 * sensitivity))^2, 0)
+                //   where d = MatchCost / Connections / tuningSize
+                // Score is zero when d >= 3.16228 * sensitivity, i.e.:
+                //   MatchCost >= 3.16228 * sensitivity * tuningSize * Connections
+                // Maximum possible Connections in subsequence DTW is target.size() + query.size().
+                NumberT zeroScoreDistance = 3.16228 * m_sensitivity * DescriptorT::DEFAULT_TUNING.size();
+                NumberT maxConnections = static_cast<NumberT>(target.size() + query.size());
+                return zeroScoreDistance * maxConnections;
             }
 
             NumberT calculateScore(gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) const
@@ -448,7 +460,7 @@ namespace carl::action
                 {
                     auto endSpan = gsl::make_span<const DescriptorT>(&t.back(), 1);
                     auto distance = calculateMatchDistance(trimmedSequence, endSpan);
-                    score = std::max(m_scoringFunction(distance), score);
+                    score = std::max(applyScoring(distance), score);
                 }
                 if (score < std::numeric_limits<NumberT>::epsilon())
                 {
@@ -462,8 +474,9 @@ namespace carl::action
                 NumberT minDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_templates)
                 {
-                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx);
-                    score = std::max(m_scoringFunction(distance), score);
+                    NumberT ceiling = computeZeroScoreCostCeiling(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx, ceiling);
+                    score = std::max(applyScoring(distance), score);
                     minDistance = std::min(distance, minDistance);
                 }
 
@@ -474,7 +487,8 @@ namespace carl::action
                 NumberT minCounterDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_countertemplates)
                 {
-                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx);
+                    NumberT ceiling = computeZeroScoreCostCeiling(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx, ceiling);
                     minCounterDistance = std::min(distance, minCounterDistance);
                 }
                 if (minDistance >= minCounterDistance)

@@ -161,7 +161,7 @@ namespace carl::DynamicTimeWarping
     };
 
     template <typename VectorT, typename CallableT, typename NumberT = double, bool ReturnAllResults = false, typename... Ts>
-    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, CallableT& distance, size_t minimumImageIdx = 0, Ts&... ts)
+    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, CallableT& distance, size_t minimumImageIdx = 0, NumberT costCeiling = std::numeric_limits<NumberT>::max(), Ts&... ts)
     {
         struct Entry
         {
@@ -219,11 +219,23 @@ namespace carl::DynamicTimeWarping
         {
             priorRow.swap(currentRow);
 
+            const bool isLastRow = (j == query.size() - 1);
+
             for (size_t i = 0; i < target.size(); ++i)
             {
                 const auto& ul = priorRow[i];
                 const auto& u = priorRow[i + 1];
                 const auto& l = currentRow[i];
+
+                // Pruning: skip this cell if all ancestors already exceed the cost ceiling.
+                // Since distance is non-negative, this cell's cost can only be >= the minimum
+                // ancestor cost, so it cannot lead to a result better than costCeiling.
+                NumberT minAncestorCost = std::min({ul.Cost, u.Cost, l.Cost});
+                if (minAncestorCost >= costCeiling)
+                {
+                    currentRow[i + 1] = sentinel;
+                    continue;
+                }
 
                 ulCost = distance(target[i], target[ul.StartIdx],  query[j], query[0]);
                 uCost = distance(target[i], target[u.StartIdx], query[j], query[0]);
@@ -242,6 +254,12 @@ namespace carl::DynamicTimeWarping
                     cost = lCost;
                 }
                 currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx };
+
+                // On the final row, tighten the ceiling as we discover better matches.
+                if (isLastRow && (i + 1) >= minimumImageIdx)
+                {
+                    costCeiling = std::min(costCeiling, currentRow[i + 1].Cost);
+                }
             }
 
             if constexpr (ReturnAllResults)
